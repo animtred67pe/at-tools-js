@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Test H.263</title>
+        <style>
+            body {
+                font-family: monospace;
+                background: #111;
+                color: #ddd;
+            }
+        </style>
+	</head>
+	<body>
+        <h1>Test H.263</h1>
+        <canvas id="dvs" width="704" height="536"></canvas>
+        <p style="color: #999999;">By <a style="color: #999999;" href="https://scratch.mit.edu/users/atfsmedia25/" target="_blank">atfsmedia25</a></p>
+		<script src="at-h263-decoder.js"></script>
+        <script>
+            const Bitmap = function(width, height, format, data) {
+                this.width = width;
+                this.height = height;
+                this.format = format;
+                this.data = data;
+            }
+            Bitmap.prototype.toRGBA = function() {
+                var width = this.width;
+                var height = this.height;
+                switch (this.format) {
+                    case "yuv420p":
+                    case "yuva420p":
+                        var isAlpha = this.format == "yuva420p";
+                        var chroma_width = (((width + 1) / 2) | 0);
+                        var chroma_height = (((height + 1) / 2) | 0);
+                        var yuv = this.data;
+                        var data = new Uint8Array((width * height) * 4);
+                        var yOffset = 0;
+                        var uOffset = width * height;
+                        var vOffset = uOffset + (chroma_width * chroma_height);
+                        var aOffset = uOffset + (chroma_width * chroma_height) + (chroma_width * chroma_height);
+                        for (var h = 0; h < height; h++) {
+                            for (var w = 0; w < width; w++) {
+                                var ypos = w + h * width + yOffset;
+                                var upos = (w >> 1) + (h >> 1) * chroma_width + (uOffset);
+                                var vpos = (w >> 1) + (h >> 1) * chroma_width + (vOffset);
+                                var Y = yuv[ypos] - 16;
+                                var U = yuv[upos] - 128;
+                                var V = yuv[vpos] - 128;
+                                var R = (1.164 * Y + 1.596 * V);
+                                var G = (1.164 * Y - 0.813 * V - 0.391 * U);
+                                var B = (1.164 * Y + 2.018 * U);
+                                var outputData_pos = w * 4 + width * h * 4;
+                                data[0 + outputData_pos] = Math.max(Math.min(R, 255), 0);
+                                data[1 + outputData_pos] = Math.max(Math.min(G, 255), 0);
+                                data[2 + outputData_pos] = Math.max(Math.min(B, 255), 0);
+                                data[3 + outputData_pos] = isAlpha ? yuv[w + h * width + aOffset] : 255;
+                            }
+                        }
+                        this.data = data;
+                        yuv = null;
+                        break;
+                }
+            }
+
+            const H263Decoder = function (deblocking) {
+                this.state = new AT_H263_Decoder.H263State({
+                    sorensonSpark: true,
+                    useScalabilityMode: false,
+                });
+                this.deblocking = deblocking;
+            };
+            H263Decoder.prototype.preloadFrame = function (encodedFrame) {
+                var reader = new AT_H263_Decoder.H263Reader(new Uint8Array(encodedFrame.data));
+                let picture = this.state.parsePicture(reader, null);
+                switch(picture.picture_type.getType()) {
+                    case "IFrame":
+                        return false;
+                    case "PFrame":
+                    case "DisposablePFrame":
+                        return true;
+                    default:
+                        throw new Error("Invalid picture type code: " + picture.picture_type.type);
+                }
+            };
+            H263Decoder.prototype.decodeFrame = function (encodedFrame) {
+                var reader = new AT_H263_Decoder.H263Reader(new Uint8Array(encodedFrame.data));
+                this.state.decodeNextPicture(reader);
+                var picture = this.state.getLastPicture();
+                let [y, b, r] = picture.as_yuv();
+                let [width, height] = picture.format.intoWidthAndHeight();
+                var yuv = new Uint8Array(y.length + b.length + r.length);
+                yuv.set(y, 0);
+                yuv.set(b, y.length);
+                yuv.set(r, y.length + b.length);
+                return new Bitmap(width, height, "yuv420p", yuv);
+            };
+            var xhr = new XMLHttpRequest();
+            xhr.onload = function() {
+                var dvs = document.getElementById('dvs');
+                var ctx = dvs.getContext("2d");
+                var decoder = new H263Decoder("useVideoPacketValue");
+                var dat = decoder.decodeFrame({
+                  data: xhr.response.slice(0x2c)
+                });
+                dat.toRGBA();
+                dvs.width = dat.width;
+                dvs.height = dat.height;
+                var imageData = ctx.createImageData(dvs.width, dvs.height);
+                imageData.data.set(dat.data, 0);
+                ctx.putImageData(imageData, 0, 0);     
+            }
+            xhr.responseType = "arraybuffer";
+            xhr.open("GET", "https://assets.scratch.mit.edu/internalapi/asset/1d2c993f6a0ca047d00f892311665fdf.wav/get/");
+            xhr.send();
+        </script>
+	</body>
+</html>

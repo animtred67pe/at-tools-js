@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Test JPG</title>
+		<style>
+			body {
+				background: #111;
+				color: #eee;
+				font-family: monospace;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Test JPG</h1>
+		<canvas id="gfddfg"></canvas>
+		<p style="color: #999999;">By <a style="color: #999999;" href="https://scratch.mit.edu/users/atfsmedia25/" target="_blank">atfsmedia25</a></p>
+		<script src="at-jpg-decoder.js"></script>
+		<script>
+			var canvas = document.getElementById('gfddfg');
+			var ctx = canvas.getContext("2d");
+			var xhr = new XMLHttpRequest();
+            xhr.onload = function() {
+	            AT_JPG_Decoder.parse(new Uint8Array(xhr.response.slice(0x2c)));
+	            var res = {
+	            	width: AT_JPG_Decoder.width,
+	            	height: AT_JPG_Decoder.height,
+	            	pixels: new Uint8Array((AT_JPG_Decoder.width * AT_JPG_Decoder.height) * 4)
+	            };
+	            AT_JPG_Decoder.copyToImageData(res);
+	            var id = new ImageData(res.width, res.height);
+	            canvas.width = res.width;
+	            canvas.height = res.height;
+	            id.data.set(res.pixels, 0);
+	            ctx.putImageData(id, 0, 0);	
+            }
+            xhr.responseType = "arraybuffer";
+            xhr.open("GET", "https://assets.scratch.mit.edu/internalapi/asset/a82006b3760a42eb7b6c364e05ad3333.wav/get/");
+            xhr.send();
+		</script>
+	</body>
+</html>
